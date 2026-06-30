@@ -1,0 +1,1994 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: AdSpot API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: ads
+    description: Ad feed and detail
+  - name: reviews
+    description: Review session and submission
+  - name: points
+    description: Points balance and ledger
+  - name: leaderboard
+    description: Weekly leaderboard
+  - name: brands
+    description: Brand portal
+  - name: admin
+    description: Admin operations
+  - name: public
+    description: Public endpoints (no authentication required)
+  - name: settings
+    description: Platform settings
+  - name: Storage
+    description: Object storage upload and serving endpoints.
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "409":
+          description: Email or username already taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ads:
+    get:
+      operationId: getAdFeed
+      tags: [ads]
+      summary: Get ad feed for reviewer
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: List of active ads
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdFeedResponse"
+
+  /ads/{adId}:
+    get:
+      operationId: getAdDetail
+      tags: [ads]
+      summary: Get ad detail with questions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: adId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Ad detail with questions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdDetailResponse"
+        "404":
+          description: Ad not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /reviews/start:
+    post:
+      operationId: startReview
+      tags: [reviews]
+      summary: Start a review session
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartReviewRequest"
+      responses:
+        "201":
+          description: Review session started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewSession"
+
+  /reviews/{sessionId}/complete:
+    post:
+      operationId: completeReview
+      tags: [reviews]
+      summary: Complete a review session with answers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteReviewRequest"
+      responses:
+        "200":
+          description: Review completed with points awarded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompleteReviewResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /points/balance:
+    get:
+      operationId: getPointsBalance
+      tags: [points]
+      summary: Get reviewer points balance
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Points balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PointsBalance"
+
+  /points/ledger:
+    get:
+      operationId: getPointsLedger
+      tags: [points]
+      summary: Get points ledger history
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Points ledger entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PointsLedgerResponse"
+
+  /leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [leaderboard]
+      summary: Get current week top 10 leaderboard
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current week leaderboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderboardResponse"
+
+  /leaderboard/history:
+    get:
+      operationId: getLeaderboardHistory
+      tags: [leaderboard]
+      summary: Get leaderboard history (past weeks)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: weeks
+          in: query
+          schema:
+            type: integer
+            default: 4
+      responses:
+        "200":
+          description: Historical leaderboard snapshots
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderboardHistoryResponse"
+
+  /brands/ads:
+    get:
+      operationId: getBrandAds
+      tags: [brands]
+      summary: Get brand's ads list
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Brand's ads with summary metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrandAdsResponse"
+    post:
+      operationId: createBrandAd
+      tags: [brands]
+      summary: Create a new ad
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAdRequest"
+      responses:
+        "201":
+          description: Ad created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdWithQuestions"
+
+  /brands/ads/{adId}:
+    get:
+      operationId: getBrandAdDetail
+      tags: [brands]
+      summary: Get brand ad detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: adId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Ad detail with questions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdWithQuestions"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBrandAd
+      tags: [brands]
+      summary: Update ad status or details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: adId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAdRequest"
+      responses:
+        "200":
+          description: Ad updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdWithQuestions"
+
+  /brands/ads/{adId}/stats:
+    get:
+      operationId: getBrandAdStats
+      tags: [brands]
+      summary: Get analytics for a brand's ad
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: adId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Ad analytics stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdStats"
+
+  /brands/ads/{adId}/questions:
+    post:
+      operationId: addQuestion
+      tags: [brands]
+      summary: Add a question to an ad
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: adId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQuestionRequest"
+      responses:
+        "201":
+          description: Question added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+
+  /brands/stats/overview:
+    get:
+      operationId: getBrandOverview
+      tags: [brands]
+      summary: Get brand-level overview stats
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Brand overview stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrandOverviewStats"
+
+  /admin/events:
+    get:
+      operationId: getAdminEvents
+      tags: [admin]
+      summary: Search/list all platform events
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventType
+          in: query
+          schema:
+            type: string
+        - name: actorId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Paginated list of events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEventsResponse"
+
+  /admin/events/export:
+    get:
+      operationId: exportAdminEvents
+      tags: [admin]
+      summary: Export events as CSV
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventType
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: CSV file of events
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /admin/ads:
+    get:
+      operationId: getAdminAds
+      tags: [admin]
+      summary: List all ads (admin view)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, active, paused, archived]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: All ads
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAdsResponse"
+
+  /admin/users:
+    get:
+      operationId: getAdminUsers
+      tags: [admin]
+      summary: List all users (admin view)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [reviewer, brand, admin]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: All users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUsersResponse"
+
+  /admin/packages:
+    get:
+      operationId: getAdminPackages
+      tags: [admin]
+      summary: List all ad packages (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All packages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdPackageList"
+    post:
+      operationId: createPackage
+      tags: [admin]
+      summary: Create a new ad package
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePackageRequest"
+      responses:
+        "201":
+          description: Package created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdPackage"
+
+  /admin/packages/{packageId}:
+    patch:
+      operationId: updatePackage
+      tags: [admin]
+      summary: Update an ad package
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: packageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePackageRequest"
+      responses:
+        "200":
+          description: Package updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdPackage"
+        "404":
+          description: Package not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deletePackage
+      tags: [admin]
+      summary: Delete an ad package
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: packageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Package deleted
+        "404":
+          description: Package not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get all platform settings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Platform settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformSettingsResponse"
+    patch:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update platform settings (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsRequest"
+      responses:
+        "200":
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformSettingsResponse"
+
+  /public/videos:
+    get:
+      operationId: getPublicVideos
+      tags: [public]
+      summary: Get weighted random video ads for the landing page
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 8
+      responses:
+        "200":
+          description: Public video feed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicVideoFeed"
+
+  /public/stats:
+    get:
+      operationId: getPublicStats
+      tags: [public]
+      summary: Get platform stats for the landing page
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformStats"
+
+  /public/packages:
+    get:
+      operationId: getPublicPackages
+      tags: [public]
+      summary: Get available ad packages for the pricing section
+      responses:
+        "200":
+          description: Available packages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdPackageList"
+
+  /brands/packages/{packageId}/purchase:
+    post:
+      operationId: purchasePackage
+      tags: [brands]
+      summary: Purchase an ad package
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: packageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Package purchased
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrandPackagePurchase"
+        "404":
+          description: Package not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /storage/uploads:
+    post:
+      tags: [Storage]
+      operationId: uploadAdAsset
+      summary: Upload an ad asset file
+      description: |
+        Accepts a multipart/form-data upload with the file in a `file` field.
+        The server enforces a 100 MB size limit and image/* / video/* MIME type
+        restriction before writing to GCS. Requires brand authentication.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The image or video file to upload (max 100 MB).
+      responses:
+        '200':
+          description: File uploaded successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          description: File missing, too large, or unsupported type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to store uploaded file.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /storage/public-objects/{filePath}:
+    get:
+      tags: [Storage]
+      operationId: getPublicObject
+      summary: Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+      parameters:
+        - name: filePath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object content streamed with correct Content-Type.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: File not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to serve public object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /storage/objects/{objectPath}:
+    get:
+      tags: [Storage]
+      operationId: getStorageObject
+      summary: Serve an object entity from PRIVATE_OBJECT_DIR
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object content streamed with correct Content-Type.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Object not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to serve object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        username:
+          type: string
+          minLength: 3
+        role:
+          type: string
+          enum: [reviewer, brand]
+        companyName:
+          type: string
+      required:
+        - email
+        - password
+        - username
+        - role
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/UserProfile"
+      required:
+        - token
+        - user
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        username:
+          type: string
+        role:
+          type: string
+          enum: [reviewer, brand, admin, super_admin]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - username
+        - role
+        - createdAt
+
+    AdSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        assetUrl:
+          type: string
+        assetType:
+          type: string
+        minWatchSeconds:
+          type: integer
+        pointReward:
+          type: integer
+        multiplierFactor:
+          type: string
+        status:
+          type: string
+          enum: [draft, active, paused, archived]
+        brandId:
+          type: string
+          format: uuid
+        brandName:
+          type: string
+        questionCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - assetUrl
+        - assetType
+        - minWatchSeconds
+        - pointReward
+        - multiplierFactor
+        - status
+        - brandId
+        - brandName
+        - questionCount
+        - createdAt
+
+    AdFeedResponse:
+      type: object
+      properties:
+        ads:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdSummary"
+        total:
+          type: integer
+        offset:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - ads
+        - total
+        - offset
+        - limit
+
+    Question:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        adId:
+          type: string
+          format: uuid
+        sortOrder:
+          type: integer
+        questionType:
+          type: string
+          enum: [multiple_choice, rating, open_text, emoji, yes_no]
+        questionText:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+          nullable: true
+      required:
+        - id
+        - adId
+        - sortOrder
+        - questionType
+        - questionText
+
+    AdDetailResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        assetUrl:
+          type: string
+        assetType:
+          type: string
+        minWatchSeconds:
+          type: integer
+        pointReward:
+          type: integer
+        multiplierFactor:
+          type: string
+        brandId:
+          type: string
+          format: uuid
+        brandName:
+          type: string
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Question"
+      required:
+        - id
+        - title
+        - assetUrl
+        - assetType
+        - minWatchSeconds
+        - pointReward
+        - multiplierFactor
+        - brandId
+        - brandName
+        - questions
+
+    ReviewSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        adId:
+          type: string
+          format: uuid
+        startedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [in_progress, completed, abandoned]
+      required:
+        - id
+        - userId
+        - adId
+        - startedAt
+        - status
+
+    StartReviewRequest:
+      type: object
+      properties:
+        adId:
+          type: string
+          format: uuid
+      required:
+        - adId
+
+    AnswerInput:
+      type: object
+      properties:
+        questionId:
+          type: string
+          format: uuid
+        answerText:
+          type: string
+          nullable: true
+        answerValue:
+          type: string
+          nullable: true
+      required:
+        - questionId
+
+    CompleteReviewRequest:
+      type: object
+      properties:
+        watchSeconds:
+          type: integer
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnswerInput"
+      required:
+        - watchSeconds
+        - answers
+
+    CompleteReviewResponse:
+      type: object
+      properties:
+        session:
+          $ref: "#/components/schemas/ReviewSession"
+        pointsAwarded:
+          type: integer
+        totalBalance:
+          type: integer
+      required:
+        - session
+        - pointsAwarded
+        - totalBalance
+
+    PointsBalance:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        balance:
+          type: integer
+        totalEarned:
+          type: integer
+      required:
+        - userId
+        - balance
+        - totalEarned
+
+    PointsEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+        source:
+          type: string
+          enum: [review, share_bonus, multiplier, admin_grant, redemption]
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - amount
+        - source
+        - createdAt
+
+    PointsLedgerResponse:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/PointsEntry"
+        total:
+          type: integer
+        offset:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - entries
+        - total
+        - offset
+        - limit
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: string
+          format: uuid
+        username:
+          type: string
+        pointsTotal:
+          type: integer
+        isCurrentUser:
+          type: boolean
+      required:
+        - rank
+        - userId
+        - username
+        - pointsTotal
+        - isCurrentUser
+
+    LeaderboardResponse:
+      type: object
+      properties:
+        weekStart:
+          type: string
+          format: date
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderboardEntry"
+        currentUserRank:
+          type: integer
+          nullable: true
+        currentUserPoints:
+          type: integer
+          nullable: true
+      required:
+        - weekStart
+        - entries
+
+    LeaderboardHistoryResponse:
+      type: object
+      properties:
+        weeks:
+          type: array
+          items:
+            type: object
+            properties:
+              weekStart:
+                type: string
+                format: date
+              entries:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+            required:
+              - weekStart
+              - entries
+      required:
+        - weeks
+
+    AdWithQuestions:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        assetUrl:
+          type: string
+        assetType:
+          type: string
+        minWatchSeconds:
+          type: integer
+        pointReward:
+          type: integer
+        multiplierFactor:
+          type: string
+        status:
+          type: string
+          enum: [draft, active, paused, archived]
+        brandId:
+          type: string
+          format: uuid
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Question"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - assetUrl
+        - assetType
+        - minWatchSeconds
+        - pointReward
+        - multiplierFactor
+        - status
+        - brandId
+        - questions
+        - createdAt
+        - updatedAt
+
+    BrandAdSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+          enum: [draft, active, paused, archived]
+        totalViews:
+          type: integer
+        completedViews:
+          type: integer
+        completionRate:
+          type: number
+        averageRating:
+          type: number
+          nullable: true
+        pointsAwarded:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - status
+        - totalViews
+        - completedViews
+        - completionRate
+        - pointsAwarded
+        - createdAt
+
+    BrandAdsResponse:
+      type: object
+      properties:
+        ads:
+          type: array
+          items:
+            $ref: "#/components/schemas/BrandAdSummary"
+        total:
+          type: integer
+      required:
+        - ads
+        - total
+
+    CreateAdRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        assetUrl:
+          type: string
+        assetType:
+          type: string
+          enum: [image, video]
+          default: image
+        minWatchSeconds:
+          type: integer
+          default: 15
+        pointReward:
+          type: integer
+          default: 10
+        questions:
+          type: array
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/CreateQuestionRequest"
+      required:
+        - title
+        - assetUrl
+
+    UpdateAdRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [draft, active, paused, archived]
+        minWatchSeconds:
+          type: integer
+        pointReward:
+          type: integer
+
+    CreateQuestionRequest:
+      type: object
+      properties:
+        questionType:
+          type: string
+          enum: [multiple_choice, rating, open_text, emoji, yes_no]
+        questionText:
+          type: string
+        sortOrder:
+          type: integer
+          default: 0
+        options:
+          type: array
+          items:
+            type: string
+          nullable: true
+      required:
+        - questionType
+        - questionText
+
+    QuestionStat:
+      type: object
+      properties:
+        questionId:
+          type: string
+          format: uuid
+        questionText:
+          type: string
+        questionType:
+          type: string
+        responseCount:
+          type: integer
+        averageRating:
+          type: number
+          nullable: true
+        optionBreakdown:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              option:
+                type: string
+              count:
+                type: integer
+              percentage:
+                type: number
+            required:
+              - option
+              - count
+              - percentage
+        openTextSamples:
+          type: array
+          nullable: true
+          items:
+            type: string
+      required:
+        - questionId
+        - questionText
+        - questionType
+        - responseCount
+
+    AdStats:
+      type: object
+      properties:
+        adId:
+          type: string
+          format: uuid
+        totalViews:
+          type: integer
+        completedViews:
+          type: integer
+        completionRate:
+          type: number
+        averageWatchSeconds:
+          type: number
+        totalPointsAwarded:
+          type: integer
+        questionStats:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuestionStat"
+        recentActivity:
+          type: array
+          items:
+            type: object
+            properties:
+              sessionId:
+                type: string
+                format: uuid
+              completedAt:
+                type: string
+                format: date-time
+              pointsAwarded:
+                type: integer
+            required:
+              - sessionId
+              - completedAt
+              - pointsAwarded
+      required:
+        - adId
+        - totalViews
+        - completedViews
+        - completionRate
+        - averageWatchSeconds
+        - totalPointsAwarded
+        - questionStats
+        - recentActivity
+
+    BrandOverviewStats:
+      type: object
+      properties:
+        totalAds:
+          type: integer
+        activeAds:
+          type: integer
+        totalViews:
+          type: integer
+        totalCompletions:
+          type: integer
+        overallCompletionRate:
+          type: number
+        totalPointsAwarded:
+          type: integer
+      required:
+        - totalAds
+        - activeAds
+        - totalViews
+        - totalCompletions
+        - overallCompletionRate
+        - totalPointsAwarded
+
+    EventLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+        actorId:
+          type: string
+          format: uuid
+          nullable: true
+        entityType:
+          type: string
+          nullable: true
+        entityId:
+          type: string
+          format: uuid
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - eventType
+        - createdAt
+
+    AdminEventsResponse:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventLogEntry"
+        total:
+          type: integer
+        offset:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - events
+        - total
+        - offset
+        - limit
+
+    AdminAdEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+          enum: [draft, active, paused, archived]
+        brandId:
+          type: string
+          format: uuid
+        brandName:
+          type: string
+        totalViews:
+          type: integer
+        completedViews:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - status
+        - brandId
+        - brandName
+        - totalViews
+        - completedViews
+        - createdAt
+
+    AdminAdsResponse:
+      type: object
+      properties:
+        ads:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminAdEntry"
+        total:
+          type: integer
+      required:
+        - ads
+        - total
+
+    AdminUserEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        username:
+          type: string
+        role:
+          type: string
+          enum: [reviewer, brand, admin]
+        pointsBalance:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - username
+        - role
+        - createdAt
+
+    AdminUsersResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUserEntry"
+        total:
+          type: integer
+      required:
+        - users
+        - total
+
+    PublicVideoItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        vimeoId:
+          type: string
+        brandName:
+          type: string
+        brandLogoUrl:
+          type: string
+          nullable: true
+        minWatchSeconds:
+          type: integer
+        pointReward:
+          type: integer
+        weight:
+          type: integer
+      required:
+        - id
+        - title
+        - vimeoId
+        - brandName
+        - minWatchSeconds
+        - pointReward
+        - weight
+
+    PublicVideoFeed:
+      type: object
+      properties:
+        videos:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicVideoItem"
+        total:
+          type: integer
+      required:
+        - videos
+        - total
+
+    PlatformStats:
+      type: object
+      properties:
+        totalReviewers:
+          type: integer
+        totalBrands:
+          type: integer
+        totalAdsCompleted:
+          type: integer
+        totalPointsAwarded:
+          type: integer
+        activeAds:
+          type: integer
+        avgPointsPerAd:
+          type: number
+      required:
+        - totalReviewers
+        - totalBrands
+        - totalAdsCompleted
+        - totalPointsAwarded
+        - activeAds
+        - avgPointsPerAd
+
+    AdPackage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        price:
+          type: number
+        adSlots:
+          type: integer
+        durationDays:
+          type: integer
+        maxImpressions:
+          type: integer
+        weight:
+          type: integer
+          description: Rotation weight — higher = more frequent in public feed
+        featured:
+          type: boolean
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - price
+        - adSlots
+        - durationDays
+        - maxImpressions
+        - weight
+        - featured
+        - active
+        - createdAt
+
+    AdPackageList:
+      type: object
+      properties:
+        packages:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdPackage"
+      required:
+        - packages
+
+    CreatePackageRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        adSlots:
+          type: integer
+          default: 1
+        durationDays:
+          type: integer
+          default: 30
+        maxImpressions:
+          type: integer
+          default: 10000
+        weight:
+          type: integer
+          default: 1
+        featured:
+          type: boolean
+          default: false
+        active:
+          type: boolean
+          default: true
+      required:
+        - name
+        - price
+
+    UpdatePackageRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        adSlots:
+          type: integer
+        durationDays:
+          type: integer
+        maxImpressions:
+          type: integer
+        weight:
+          type: integer
+        featured:
+          type: boolean
+        active:
+          type: boolean
+
+    PlatformSetting:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+          nullable: true
+        type:
+          type: string
+          enum: [string, number, boolean]
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - key
+        - value
+        - label
+        - type
+        - updatedAt
+
+    PlatformSettingsResponse:
+      type: object
+      properties:
+        settings:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlatformSetting"
+      required:
+        - settings
+
+    UpdateSettingsRequest:
+      type: object
+      properties:
+        updates:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              value:
+                type: string
+            required:
+              - key
+              - value
+      required:
+        - updates
+
+    BrandPackagePurchase:
+      type: object
+      properties:
+        packageId:
+          type: string
+          format: uuid
+        packageName:
+          type: string
+        brandId:
+          type: string
+          format: uuid
+        adSlotsGranted:
+          type: integer
+        expiresAt:
+          type: string
+          format: date-time
+        purchasedAt:
+          type: string
+          format: date-time
+      required:
+        - packageId
+        - packageName
+        - brandId
+        - adSlotsGranted
+        - expiresAt
+        - purchasedAt
+
+    UploadResponse:
+      type: object
+      required: [objectPath]
+      properties:
+        objectPath:
+          type: string
+          description: Object path (e.g. `/objects/uploads/<uuid>`). Store this in your database.

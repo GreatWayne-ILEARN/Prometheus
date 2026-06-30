@@ -1,0 +1,116 @@
+You are working on a pnpm monorepo at the root of this project.
+
+## TASK: Consolidate multiple Vite/React apps into one unified application
+
+### Step 1 — Create @workspace/ui shared package
+
+Create `lib/ui/` with:
+- package.json: name `@workspace/ui`, all 26 Radix UI packages as dependencies, `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react` as dependencies. `react` and `react-dom` as peerDependencies.
+- tsconfig.json: extends `../../tsconfig.base.json`, `noEmit: true`, `jsx: "react-jsx"`, `lib: ["es2022", "dom", "dom.iterable"]`
+- Copy all shadcn/ui component files from `artifacts/adspot-web/src/components/ui/` into `lib/ui/src/components/ui/`
+- Copy `artifacts/adspot-web/src/lib/utils.ts` into `lib/ui/src/lib/utils.ts`
+- Copy `artifacts/adspot-web/src/hooks/use-toast.ts` into `lib/ui/src/hooks/use-toast.ts`
+- Copy `artifacts/adspot-web/src/hooks/use-mobile.tsx` into `lib/ui/src/hooks/use-mobile.tsx`
+- Rewrite ALL `@/` imports inside lib/ui to relative paths (`@/lib/utils` → `../../lib/utils`, `@/components/ui/X` → `./X`, `@/hooks/X` → `../../hooks/X`)
+- Create `lib/ui/src/index.ts` with barrel re-exports of all 55 components + cn() + useToast + useIsMobile
+- Add `@workspace/ui` dependency to all web apps' package.json
+- Replace all `@/components/ui/X`, `@/lib/utils`, `@/hooks/use-toast`, `@/hooks/use-mobile` imports in all apps with `@workspace/ui`
+- Delete the old local `components/ui/`, `hooks/use-toast.ts`, `hooks/use-mobile.tsx`, `lib/utils.ts` from all apps
+
+### Step 2 — Create unified auth context
+
+Create `artifacts/adspot-app/src/contexts/AuthContext.tsx`:
+- Uses React Query `useGetMe` pattern (from `@workspace/api-client-react`)
+- Single token key: `adspot_token`
+- `login(token: string)` — stores token, sets state
+- `logout()` — removes token, calls `window.location.href = "/"`
+- `hasRole(...roles: AppRole[])` — checks if user has any of the given roles
+- `AppRole` = `"reviewer" | "brand" | "admin" | "super_admin"`
+- Calls `setAuthTokenGetter(() => localStorage.getItem("adspot_token"))` at module level
+- Auto-logout on 401 error via useEffect watching the query error
+
+### Step 3 — Create unified App.tsx
+
+Create `artifacts/adspot-app/src/App.tsx` with route structure:
+
+```
+/                          → Landing (public), or redirect by role
+/login                     → Login
+/register                  → Register
+/dashboard                 → Reviewer dashboard (requires reviewer role)
+/leaderboard               → Leaderboard (requires reviewer role)
+/review/:id                → Review session (requires reviewer role)
+/brand/dashboard           → Brand analytics (brand/admin roles)
+/brand/ads                 → My Ads list (brand/admin roles)
+/brand/ads/new             → Create Ad (brand/admin roles)
+/brand/ads/:id             → Ad Detail (brand/admin roles)
+/brand/settings            → Brand settings (brand role)
+/brand/analytics           → Brand portal (brand/admin roles)
+/admin/dashboard           → Admin overview (admin/super_admin roles)
+/admin/ads                 → Admin ads (admin/super_admin roles)
+/admin/users               → Admin users (admin/super_admin roles)
+/admin/events              → Admin events (admin/super_admin roles)
+/admin/financials          → Admin financials (admin/super_admin roles)
+/admin/panel               → Full admin panel (admin/super_admin roles)
+```
+
+Root route `/` checks `user.role` and redirects:
+- admin/super_admin → `/admin/dashboard`
+- brand → `/brand/dashboard`
+- reviewer → `/dashboard`
+- no user → shows Landing
+
+ProtectedRoute component: if `!user` redirect to `/login`, if `roles` specified and user role not in roles, redirect to `/`
+
+### Step 4 — Create layout components
+
+- `ReviewerLayout.tsx` — dark sidebar with logo, user pill, nav links (Dashboard, Leaderboard), sign out at bottom. Top bar with breadcrumb and mobile nav icons.
+- `BrandLayout.tsx` — shadcn sidebar with logo, nav links (differs for brand vs admin), user info + sign out button at footer, mobile sheet drawer, top mobile bar. Brand nav: Dashboard, My Ads, Settings. Admin nav: Overview, All Ads, Users, Financials, Event Log.
+
+### Step 5 — Fix the login page
+
+The login page imports `login as apiLogin` from `@workspace/api-client-react`, calls it on form submit, then calls `login(res.token)` from useAuth(), then redirects to `/` via `setLocation("/")`.
+
+### Step 6 — Fix the register page
+
+The register page imports `login as apiLogin` from `@workspace/api-client-react`. On registration success, calls `apiLogin()` with credentials to get token, then calls `login(res.token)` from useAuth().
+
+### Step 7 — Fix token key references
+
+In all pages that use a hardcoded token key for API calls (`customFetch`, `apiFetch`, `localStorage.getItem`), ensure they use `"adspot_token"` NOT `"adspot_brand_token"`. Files to check:
+- admin/dashboard.tsx
+- admin/financials.tsx
+- brand/dashboard.tsx
+- brand/ads/create-ad.tsx
+- lib/download-with-auth.ts
+- lib/rewards.ts
+- components/AISummaryPanel.tsx
+
+### Step 8 — Add sign out buttons
+
+Add visible "Sign out" buttons with LogOut icon directly on these pages (in the header area, not just in sidebar):
+- brand/dashboard.tsx — red outline button next to Refresh/New Campaign
+- admin/dashboard.tsx — red outline button top-right of header
+
+### Step 9 — Fix the 404 page
+
+The not-found page "Go Home" link should use Wouter's `<Link href="/">` instead of `<a href="/platform/">`.
+
+### Step 10 — Clean up
+
+- Delete `artifacts/adspot-landing/` (redundant)
+- Delete `artifacts/adspot-web/` (merged)
+- Delete `artifacts/adspot-brand/` (merged)
+- Delete `lib/integrations/openai_ai_integrations/` (stale, unpackaged duplicate)
+- Remove `scripts/` from pnpm-workspace.yaml (nonexistent)
+- Remove all Windows binary exclusions from pnpm-workspace.yaml for rollup, lightningcss, @tailwindcss/oxide, esbuild
+- Fix root package.json preinstall script for Windows: `"preinstall": "node -e \"..."` instead of `sh -c`
+- Remove `--filter "./scripts"` from root typecheck command
+- Add `dotenv` to lib/db devDependencies
+
+### IMPORTANT RULES
+- NEVER import from `@/components/ui/` or `@/lib/utils` or `@/hooks/` in any app file. ALWAYS import from `@workspace/ui`.
+- All layout components import from `@workspace/ui` for UI primitives.
+- Auth token is always `"adspot_token"` — never `"adspot_brand_token"`.
+- The unified app lives at `artifacts/adspot-app/`.
+- Typecheck after every major change with `pnpm --filter "@workspace/adspot-app" run typecheck`.
